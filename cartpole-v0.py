@@ -11,3 +11,33 @@ import torchvision
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
+
+env = gym.make('CartPole-v0')
+
+class NeuralN(nn.Module):
+	def __init__(self):
+		super(NeuralN,self).__init__()
+
+		self.fc1 = nn.Linear(in_features = 4, out_features = 8)
+		self.fc2 = nn.Linear(in_features = 8, out_features = 8)
+		self.fc3 = nn.Linear(in_features = 8, out_features = 4)
+		self.fc4 = nn.Linear(in_features = 4, out_features = 2)
+
+		self.drop_out = nn.Dropout()
+
+		self.criterion = nn.CrossEntropyLoss()
+
+	def forward(self, x):
+
+		out = self.fc1(out)
+		out = self.fc2(out)
+		out = self.drop_out(out)
+		out = self.fc3(out)
+		out = self.fc4(out)
+
+		return out
+
+	def criterion(self, ap, ac):
+		loss = nn.criterion(ap, ac)
+		return loss
+
