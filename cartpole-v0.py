@@ -9,6 +9,7 @@ import gym
 import torch
 import torchvision
 import torch.nn as nn
+import random
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -73,19 +74,19 @@ out = model(ten)
 #out[0] = 0.8
 #print(out)
 
-x = torch.randn(1, 3)
-y = torch.randn(1, 3)
+#x = torch.randn(1, 3)
+#y = torch.randn(1, 3)
 
-print(x)
-print(y)
-l = [[x,y],[x,y],[x,y],[x,y]]
-caten = [i[0] for i in l]
-print(caten)
-caten = torch.cat(caten,0)
-print(caten)
+#print(x)
+#print(y)
+#l = [[x,y],[x,y],[x,y],[x,y]]
+#caten = [i[0] for i in l]
+#print(caten)
+#caten = torch.cat(caten,0)
+#print(caten)
 
-def train(env, en):
-	epsilon = 0.8
+def train(env, ne):
+	epsilon = 1
 	e = 0
 	memory = ReplayMemory(1000)
 	mini_batch = 64
@@ -98,6 +99,7 @@ def train(env, en):
 
 		#Episode - Running till termination
 		while not done:
+			env.render()s
 			#Picking action by Epsilon-Greedy
 			Q = model(torch.from_numpy(state))
 			action = 0
@@ -105,7 +107,7 @@ def train(env, en):
 				action = 1
 			action = np.random.randint(low = 0, high = 2, size = 1) if np.random.random_sample() > epsilon else action
 
-			#Add Epislon decay step
+			epsilon = ((ne/10)/((ne/10) + e))
 
 			#Execute action
 			nstate, reward, done, _ = env.step(action)
@@ -120,8 +122,12 @@ def train(env, en):
 			if done:
 				ten_Qnstate[0], ten_Qnstate[1] = 0,0
 
+			print([torch.from_numpy(state), action, ten_reward, ten_Qnstate])
 			#Storing Transition in the Replay Memory
-			memory.add(Q, action, ten_reward, ten_Qnstate)
+			memory.add([torch.from_numpy(state), action, ten_reward, ten_Qnstate])
+			print(done)
+
+			state = nstate
 
 			#Sample random minibatch of transitions from Replay Memory
 			if (len(memory.D) > mini_batch):
@@ -133,6 +139,7 @@ def train(env, en):
 				N_collection = [i[3] for i in batch]
 
 				S_collection = torch.cat(S_collection, 0)
+				print(A_collection)
 				A_collection = torch.cat(A_collection, 0)
 				R_collection = torch.cat(R_collection, 0)
 				N_collection = torch.cat(N_collection, 0)
@@ -143,3 +150,27 @@ def train(env, en):
 				optimizer.zero_grad()
 				loss.backward()
 				optimizer.step()
+			step = step + 1
+		e = e + 1
+		print(e)
+
+
+def test(env, nt):
+	t = 0
+	reward_list = []
+	model.eval()
+	with torch.no_grad():
+		while (t < nt):
+			rev = 0
+			state = env.reset()
+			done = False
+			while not done:
+				Q = model(torch.from_numpy(state))
+				action = 0 if Q[0] > Q[1] else 1
+				nstate, reward, done, _ = env.step(action)
+				rev = rev + reward
+				state = nstate
+			reward_list.append(rev)
+	return reward_list
+
+train(env, 5)
