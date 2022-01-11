@@ -23,16 +23,21 @@ class NeuralN(nn.Module):
 		self.fc2 = nn.Linear(in_features = 8, out_features = 8)
 		self.fc3 = nn.Linear(in_features = 8, out_features = 4)
 		self.fc4 = nn.Linear(in_features = 4, out_features = 2)
+		self.ReLU = nn.ReLU()
 
 		self.drop_out = nn.Dropout()
 
 	def forward(self, x):
 
 		out = self.fc1(x)
+		#out = self.ReLU(out)
 		out = self.fc2(out)
+		#out = self.ReLU(out)
 		out = self.drop_out(out)
 		out = self.fc3(out)
+		#out = self.ReLU(out)
 		out = self.fc4(out)
+		#out = self.ReLU(out)
 
 		return out
 
@@ -56,36 +61,16 @@ model = NeuralN()
 
 optimizer = torch.optim.Adam(model.parameters(), lr = α)
 loss = nn.MSELoss()
+#loss = nn.CrossEntropyLoss()
 
 state = env.reset()
 
-ten = torch.from_numpy(state)
-out = model(ten)
-#print(state, out[0])
-#print(float(out[0]),float(out[1]))
-#print(out[0]>out[1], out)
-#print(np.random.random_sample())
-#print(out)
-#out[0] = 0.8
-#print(out)
-
-#x = torch.randn(1, 3)
-#y = torch.randn(1, 3)
-
-#print(x)
-#print(y)
-#l = [[x,y],[x,y],[x,y],[x,y]]
-#caten = [i[0] for i in l]
-#print(caten)
-#caten = torch.cat(caten,0)
-#print(caten)
-
 def train(env, ne):
 	epsilon = 1
-	gamma = 0.8
+	gamma = 0.9
 	e = 0
 	memory = ReplayMemory(1000)
-	mini_batch = 64
+	mini_batch = 128
 
 	#Episodes
 	while (e < ne):
@@ -96,12 +81,10 @@ def train(env, ne):
 
 		#Episode - Running till termination
 		while not done:
-			env.render()
+			#env.render()
 			#Picking action by Epsilon-Greedy
 			Q = model(torch.from_numpy(state))
-			action = 0
-			if Q[1]>Q[0]:
-				action = 1
+			action = 0 if Q[0]>Q[1] else 1
 			action = np.random.randint(low = 0, high = 2, size = 1)[0] if np.random.random_sample() > epsilon else action
 
 			epsilon = ((ne/10)/((ne/10) + e))
@@ -128,7 +111,7 @@ def train(env, ne):
 				batch = memory.sample(mini_batch)
 
 				S_collection = [i[0] for i in batch]
-				A_collection = [i[1] for i in batch]
+				#A_collection = [i[1] for i in batch]
 				R_collection = [i[2] for i in batch]
 				N_collection = [i[3] for i in batch]
 
@@ -140,14 +123,22 @@ def train(env, ne):
 				R_collection = R_collection.reshape(mini_batch,2)
 				N_collection = N_collection.reshape(mini_batch,4)
 
+				#Q Values of the actions in current state
 				Q = model(S_collection)
+				#Q Values of the actions in next state 
 				QN = model(N_collection)
+				
+				#Picking the Max Value as the Q value for the next state
 				BS = []
 				Qmax = QN.max(1)
 				for i in Qmax[0]:
 					BS.append([i,i])
-				Loss = loss(Q, (R_collection + gamma*QN))
+				QN = torch.FloatTensor(BS)
 
+				#print(R_collection,QN)
+				#print(QN)
+				Loss = loss(input = Q, target = (R_collection + gamma*QN))
+				#print(Loss)
 				optimizer.zero_grad()
 				Loss.backward()
 				optimizer.step()
@@ -166,7 +157,7 @@ def test(env, nt):
 			state = env.reset()
 			done = False
 			while not done:
-				env.render
+				env.render()
 				Q = model(torch.from_numpy(state))
 				action = 0 if Q[0] > Q[1] else 1
 				nstate, reward, done, _ = env.step(action)
@@ -176,8 +167,12 @@ def test(env, nt):
 			t = t + 1
 	return reward_list
 
-train(env, 10)
-#for param in (model.parameters()):
-#	print(param.data)
+for param in (model.parameters()):
+	print(param.data)
 
-print(test(env, 1))
+train(env, 1000)
+
+for param in (model.parameters()):
+	print(param.data)
+
+print(test(env, 10))
