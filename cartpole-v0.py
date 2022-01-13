@@ -30,14 +30,14 @@ class NeuralN(nn.Module):
 	def forward(self, x):
 
 		out = self.fc1(x)
-		#out = self.ReLU(out)
+		out = self.ReLU(out)
 		out = self.fc2(out)
-		#out = self.ReLU(out)
+		out = self.ReLU(out)
 		#out = self.drop_out(out)
 		out = self.fc3(out)
-		#out = self.ReLU(out)
+		out = self.ReLU(out)
 		out = self.fc4(out)
-		#out = self.ReLU(out)
+		out = self.ReLU(out)
 
 		return out
 
@@ -56,7 +56,7 @@ class ReplayMemory:
 
 def train(env, ne):
 	epsilon = 1
-	gamma = 0.9
+	gamma = 0.99
 	e = 0
 	memory = ReplayMemory(1000)
 	mini_batch = 128
@@ -97,7 +97,7 @@ def train(env, ne):
 
 			#print([torch.from_numpy(state), action, ten_reward, ten_Qnstate])
 			#Storing Transition in the Replay Memory
-			memory.add([torch.from_numpy(state), action, ten_reward, ten_Qnstate, done])
+			memory.add([torch.from_numpy(state), action, reward, ten_Qnstate, done])
 			#print(done)
 			state = nstate
 
@@ -106,16 +106,14 @@ def train(env, ne):
 				batch = memory.sample(mini_batch)
 
 				S_collection = [i[0] for i in batch]
-				#A_collection = [i[1] for i in batch]
+				A_collection = [i[1] for i in batch]
 				R_collection = [i[2] for i in batch]
 				N_collection = [i[3] for i in batch]
 
 				S_collection = torch.cat(S_collection, 0)
-				R_collection = torch.cat(R_collection, 0)
 				N_collection = torch.cat(N_collection, 0)
 
 				S_collection = S_collection.reshape(mini_batch,4)
-				R_collection = R_collection.reshape(mini_batch,2)
 				N_collection = N_collection.reshape(mini_batch,4)
 
 				#print(R_collection[0])
@@ -126,38 +124,32 @@ def train(env, ne):
 				QN = []
 				with torch.no_grad():
 					QN = model_targe(N_collection)
-				for i in range(mini_batch):
-					if batch[i][4]:
-						QN[i][0], QN[i][1] = 0, 0
-						#print(QN[i], batch[i])
+					#For terminating cases
+					for i in range(mini_batch):
+						if batch[i][4]:
+							QN[i][0], QN[i][1] = 0, 0
+							#print(QN[i], batch[i])
 
-				#Picking the Max Value as the Q value for the next state
-				BS = []
-				Qmax = QN.max(1)
-				for i in Qmax[0]:
-					BS.append([i,i])
-				QN = torch.FloatTensor(BS)
-				#print(QN)
+					#Picking the Max Value as the Q value for the next state applying dicount and adding reward, while the unpicked action has the same Q value
+					Qmax = QN.max(1)
+					for i in range(mini_batch):
+						QN[i][1-A_collection[i]] = Q[i][1-A_collection[i]]
+						QN[i][A_collection[i]] = R_collection[i] + gamma*Qmax[0][i]
 
-				targe = R_collection + gamma*QN
-				#print(Q[0], R_collection[0], QN[0], targe[0], "\n")
-				#print(targe)
-
-				#print(R_collection,QN)
-				#print(QN)
-				Loss = loss(input = Q, target = targe)
+				Loss = loss(input = Q, target = QN)
 				#print(Loss)
 				optimizer.zero_grad()
 				Loss.backward()
 				optimizer.step()
-				if (count == 500):
+
+				if (count == 25):
 					model_targe.load_state_dict(model_learn.state_dict())
 					count = 0
 				else:
 					count = count + 1
 			step = step + 1
 		e = e + 1
-		print("Episode - ", e,"/",ne,"\tReward - ", rev)
+		print("Episode -", e,"/",ne,"\tReward -", rev)
 		rev = test(env, 1, 0)
 		rev_list.append(rev)
 	return rev_list
@@ -195,7 +187,7 @@ model_targe.eval()
 #print(model_learn(s), model_targe(s))
 
 #ReplayM = ReplayMemory(1000)
-α = 0.0001 #Learning Rate
+α = 0.001 #Learning Rate
 
 optimizer = torch.optim.Adam(model_learn.parameters(), lr = α)
 
@@ -214,6 +206,6 @@ plt.plot(x, r)
 #for param in (model.parameters()):
 #	print(param.data)
 
-print(test(env, 10, 1))
+print(test(env, 100, 1))
 
-#plt.show()
+plt.show()
