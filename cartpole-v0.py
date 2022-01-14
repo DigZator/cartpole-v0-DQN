@@ -116,8 +116,6 @@ def train(env, ne):
 				S_collection = S_collection.reshape(mini_batch,4)
 				N_collection = N_collection.reshape(mini_batch,4)
 
-				#print(R_collection[0])
-
 				#Q Values of the actions in current state
 				Q = model_learn(S_collection)
 				#Q Values of the actions in next state
@@ -128,7 +126,6 @@ def train(env, ne):
 					for i in range(mini_batch):
 						if batch[i][4]:
 							QN[i][0], QN[i][1] = 0, 0
-							#print(QN[i], batch[i])
 
 					#Picking the Max Value as the Q value for the next state applying dicount and adding reward, while the unpicked action has the same Q value
 					Qmax = QN.max(1)
@@ -199,9 +196,18 @@ state = env.reset()
 #for param in (model.parameters()):
 #	print(param.data)
 
-r = train(env, 1000)
+r = train(env, 1500)
 x = [i for i in range(len(r))]
 plt.plot(x, r)
+
+# Specify a path
+PATH = "saved_parameters.pt"
+# Save
+torch.save(model_learn.state_dict(), PATH)
+
+#model = NeuralN()
+#model.load_state_dict(torch.load(PATH))
+#model.eval()
 
 #for param in (model.parameters()):
 #	print(param.data)
