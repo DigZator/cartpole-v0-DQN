@@ -37,7 +37,7 @@ class NeuralN(nn.Module):
 		out = self.fc3(out)
 		out = self.ReLU(out)
 		out = self.fc4(out)
-		out = self.ReLU(out)
+		#out = self.ReLU(out)
 
 		return out
 
@@ -61,6 +61,7 @@ def train(env, ne):
 	memory = ReplayMemory(1000)
 	mini_batch = 128
 	rev_list = []
+	rev_list2 = []
 
 	#Episodes
 	while (e < ne):
@@ -69,6 +70,7 @@ def train(env, ne):
 		done = False
 		rev = 0
 		count = 0
+		epsilon = ((ne/10)/((ne/10) + e))
 
 		#Episode - Running till termination
 		while not done:
@@ -79,8 +81,7 @@ def train(env, ne):
 				Q = model_learn(torch.from_numpy(state))
 			action = 0 if Q[0] > Q[1] else 1
 			action = np.random.randint(low = 0, high = 2, size = 1)[0] if np.random.random_sample() > epsilon else action
-
-			epsilon = ((ne/10)/((ne/10) + e))
+			
 			#if (e > 0.9*ne):
 			#	epsilon = 0.1
 
@@ -94,6 +95,9 @@ def train(env, ne):
 			ten_reward[1-action] = 0
 			ten_Qnstate = torch.from_numpy(nstate)
 			rev = rev + reward
+
+			#if step>195:
+			#	reward = 100
 
 			#print([torch.from_numpy(state), action, ten_reward, ten_Qnstate])
 			#Storing Transition in the Replay Memory
@@ -119,37 +123,46 @@ def train(env, ne):
 				#Q Values of the actions in current state
 				Q = model_learn(S_collection)
 				#Q Values of the actions in next state
-				QN = []
+				QT = []
 				with torch.no_grad():
-					QN = model_targe(N_collection)
+					QT = model_targe(N_collection)
 					#For terminating cases
 					for i in range(mini_batch):
 						if batch[i][4]:
-							QN[i][0], QN[i][1] = 0, 0
+							QT[i][0], QT[i][1] = 0, 0
 
 					#Picking the Max Value as the Q value for the next state applying dicount and adding reward, while the unpicked action has the same Q value
-					Qmax = QN.max(1)
+					Qmax = QT.max(1)[0]
 					for i in range(mini_batch):
-						QN[i][1-A_collection[i]] = Q[i][1-A_collection[i]]
-						QN[i][A_collection[i]] = R_collection[i] + gamma*Qmax[0][i]
+						QT[i][1-A_collection[i]] = Q[i][1-A_collection[i]]
+						QT[i][A_collection[i]] = R_collection[i] + gamma*Qmax[i]
 
-				Loss = loss(input = Q, target = QN)
+				Loss = loss(input = Q, target = QT)
 				#print(Loss)
+				#if step == 1:
+				loss_list.append(float(Loss))
 				optimizer.zero_grad()
 				Loss.backward()
 				optimizer.step()
 
-				if (count == 25):
+				if (count == 20):
 					model_targe.load_state_dict(model_learn.state_dict())
 					count = 0
 				else:
 					count = count + 1
 			step = step + 1
 		e = e + 1
-		print("Episode -", e,"/",ne,"\tReward -", rev)
+		rev_list2.append(rev)
+		print("Episode -", e,"/",ne,"\tReward -", rev, "\tTest Reward -", test(env,1,0)[0])
 		rev = test(env, 1, 0)
 		rev_list.append(rev)
-	return rev_list
+		if (rev[0]) > 195:
+			count = count + 1
+		else:
+			count = 0
+		if count>200:
+			e = ne
+	return rev_list, rev_list2
 
 
 def test(env, nt, show):
@@ -179,6 +192,8 @@ model_targe = NeuralN()
 model_targe.load_state_dict(model_learn.state_dict())
 model_targe.eval()
 
+loss_list = []
+
 #s = [0.0677,0.0197,-0.2054,-0.5108]
 #s = torch.FloatTensor(s)
 #print(model_learn(s), model_targe(s))
@@ -196,15 +211,13 @@ state = env.reset()
 #for param in (model.parameters()):
 #	print(param.data)
 
-r = train(env, 1500)
-x = [i for i in range(len(r))]
-plt.plot(x, r)
-
-# Specify a path
-PATH = "saved_parameters.pt"
-# Save
-torch.save(model_learn.state_dict(), PATH)
-
+r1,r2= train(env, 1000)
+x = [i for i in range(len(r1))]
+plt.plot(x, r1, label = "Epsilon = 0, Reward")
+plt.plot(x, r2, label = "Epsilon > 0, Reward")
+plt.legend()
+#x = [i for i in range(len(loss_list))]
+#plt.plot(x,loss_list, label= "Loss")
 #model = NeuralN()
 #model.load_state_dict(torch.load(PATH))
 #model.eval()
@@ -212,6 +225,13 @@ torch.save(model_learn.state_dict(), PATH)
 #for param in (model.parameters()):
 #	print(param.data)
 
-print(test(env, 100, 1))
+print(test(env, 10, 1))
+
+save = 1
+if save:
+	# Specify a path
+	PATH = "saved_parameters.pt"
+	# Save
+	torch.save(model_learn.state_dict(), PATH)
 
 plt.show()
