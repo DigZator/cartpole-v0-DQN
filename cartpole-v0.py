@@ -70,7 +70,7 @@ def train(env, ne):
 		done = False
 		rev = 0
 		count = 0
-		epsilon = ((ne/10)/((ne/10) + e))
+		k = ((ne/10)/((ne/10) + e))
 
 		#Episode - Running till termination
 		while not done:
@@ -80,10 +80,17 @@ def train(env, ne):
 			with torch.no_grad():
 				Q = model_learn(torch.from_numpy(state))
 			action = 0 if Q[0] > Q[1] else 1
+
+
+			epsilon = k
+			if (e > 0.1*ne):
+				epsilon = (step*k)/200
+			if (e > 0.5*ne and step < 100):
+				epsilon = 0
 			action = np.random.randint(low = 0, high = 2, size = 1)[0] if np.random.random_sample() > epsilon else action
 			
-			#if (e > 0.9*ne):
-			#	epsilon = 0.1
+			
+				
 
 			#Execute action
 			nstate, reward, done, _ = env.step(action)
